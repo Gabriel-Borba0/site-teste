@@ -1,5 +1,5 @@
-## Versão 5 -- planejamento
-1. Mudar a cor do site para azul
+## Versão 5 -- Publicada 26/10/26
+1. Mudar a cor do site para azul. [x]
 
 
 
