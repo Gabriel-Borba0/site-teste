@@ -36,6 +36,64 @@
     }
     code { background: #e5e5ea; padding: 2px 6px; border-radius: 6px; }
     footer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e5ea; color: #6e6e73; font-size: .85rem; }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+    .clima {
+      box-sizing: border-box;
+      width: min(520px, 100%);
+      padding: 1.5rem;
+      border: 1px solid #cfe4da;
+      border-radius: 12px;
+      background: #eff8f4;
+      color: #1d1d1f;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
+      text-align: left;
+    }
+    .clima-cabecalho {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .clima h2 { margin: 0; color: #146c5a; font-size: 1.25rem; }
+    .clima-local { margin: .35rem 0 0; color: #59645f; }
+    .clima-temperatura { margin: 1.25rem 0 .2rem; color: #146c5a; font-size: 3.5rem; line-height: 1; font-weight: 700; }
+    .clima-condicao { margin: 0; font-size: 1.1rem; }
+    .clima-detalhes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem 1rem;
+      margin: 1.25rem 0;
+      padding-top: 1rem;
+      border-top: 1px solid #cfe4da;
+    }
+    .clima-detalhe { color: #59645f; font-size: .9rem; }
+    .clima-detalhe strong { display: block; margin-top: .25rem; color: #1d1d1f; font-size: 1rem; }
+    .clima-status { min-height: 1.3em; color: #59645f; font-size: .8rem; }
+    .clima-status.erro { color: #a12e2e; }
+    .clima-atualizar {
+      border: 1px solid #a9cdbf;
+      border-radius: 6px;
+      padding: .5rem .7rem;
+      background: #fff;
+      color: #146c5a;
+      font: inherit;
+      cursor: pointer;
+    }
+    .clima-atualizar:hover { background: #e3f1eb; }
+    .clima-atualizar:focus-visible { outline: 3px solid #80c4ad; outline-offset: 2px; }
+    .clima-atualizar:disabled { cursor: wait; opacity: .65; }
+    .clima-fonte { margin-bottom: 0; color: #59645f; font-size: .8rem; }
+    .clima-fonte a { color: #146c5a; }
+    @media (max-width: 560px) {
+      body { justify-content: flex-start; }
+      .clima { padding: 1.25rem; }
+    }
   </style>
 </head>
 <body>
@@ -55,5 +113,91 @@
       Prof. Marcelino Dias da Silva
     </footer>
   </main>
+  <section class="clima" aria-labelledby="clima-titulo">
+    <div class="clima-cabecalho">
+      <div>
+        <h2 id="clima-titulo">Clima agora</h2>
+        <p class="clima-local">São Paulo, SP</p>
+      </div>
+      <button class="clima-atualizar" id="clima-atualizar" type="button">Atualizar</button>
+    </div>
+    <p class="clima-temperatura" id="clima-temperatura" aria-live="polite">--°</p>
+    <p class="clima-condicao" id="clima-condicao">Buscando condições atuais...</p>
+    <div class="clima-detalhes" aria-label="Detalhes do clima">
+      <div class="clima-detalhe">Sensação térmica<strong id="clima-sensacao">--</strong></div>
+      <div class="clima-detalhe">Umidade<strong id="clima-umidade">--</strong></div>
+      <div class="clima-detalhe">Vento<strong id="clima-vento">--</strong></div>
+      <div class="clima-detalhe">Chuva<strong id="clima-chuva">--</strong></div>
+    </div>
+    <p class="clima-status" id="clima-status" role="status">Carregando dados...</p>
+    <p class="clima-fonte">Atualização automática a cada 10 minutos · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Dados: Open-Meteo</a></p>
+  </section>
+  <script>
+    const camposClima = {
+      temperatura: document.querySelector("#clima-temperatura"),
+      condicao: document.querySelector("#clima-condicao"),
+      sensacao: document.querySelector("#clima-sensacao"),
+      umidade: document.querySelector("#clima-umidade"),
+      vento: document.querySelector("#clima-vento"),
+      chuva: document.querySelector("#clima-chuva"),
+      status: document.querySelector("#clima-status"),
+      atualizar: document.querySelector("#clima-atualizar")
+    };
+
+    const descricoesClima = {
+      0: "Céu limpo", 1: "Predominantemente limpo", 2: "Parcialmente nublado",
+      3: "Nublado", 45: "Neblina", 48: "Neblina com geada",
+      51: "Garoa leve", 53: "Garoa moderada", 55: "Garoa intensa",
+      56: "Garoa congelante leve", 57: "Garoa congelante intensa",
+      61: "Chuva leve", 63: "Chuva moderada", 65: "Chuva intensa",
+      66: "Chuva congelante leve", 67: "Chuva congelante intensa",
+      71: "Neve leve", 73: "Neve moderada", 75: "Neve intensa", 77: "Grãos de neve",
+      80: "Pancadas leves", 81: "Pancadas moderadas", 82: "Pancadas fortes",
+      85: "Pancadas de neve leves", 86: "Pancadas de neve fortes",
+      95: "Trovoada", 96: "Trovoada com granizo leve", 99: "Trovoada com granizo forte"
+    };
+
+    async function atualizarClima() {
+      camposClima.atualizar.disabled = true;
+      camposClima.status.classList.remove("erro");
+      camposClima.status.textContent = "Atualizando dados...";
+
+      try {
+        const parametros = new URLSearchParams({
+          latitude: "-23.5505",
+          longitude: "-46.6333",
+          current: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
+          timezone: "America/Sao_Paulo"
+        });
+        const resposta = await fetch(`https://api.open-meteo.com/v1/forecast?${parametros}`);
+        if (!resposta.ok) throw new Error("Falha ao consultar o serviço de clima.");
+
+        const dados = await resposta.json();
+        const atual = dados.current;
+        camposClima.temperatura.textContent = `${Math.round(atual.temperature_2m)}°`;
+        camposClima.condicao.textContent = descricoesClima[atual.weather_code] || "Condição indisponível";
+        camposClima.sensacao.textContent = `${Math.round(atual.apparent_temperature)}°C`;
+        camposClima.umidade.textContent = `${Math.round(atual.relative_humidity_2m)}%`;
+        camposClima.vento.textContent = `${Math.round(atual.wind_speed_10m)} km/h`;
+        camposClima.chuva.textContent = `${atual.precipitation} mm`;
+        const horario = new Intl.DateTimeFormat("pt-BR", {
+          hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo"
+        }).format(new Date());
+        camposClima.status.textContent = `Atualizado às ${horario}.`;
+      } catch {
+        camposClima.status.textContent = "Não foi possível atualizar. Tente novamente.";
+        camposClima.status.classList.add("erro");
+        if (camposClima.temperatura.textContent === "--°") {
+          camposClima.condicao.textContent = "Clima indisponível no momento.";
+        }
+      } finally {
+        camposClima.atualizar.disabled = false;
+      }
+    }
+
+    camposClima.atualizar.addEventListener("click", atualizarClima);
+    atualizarClima();
+    window.setInterval(atualizarClima, 10 * 60 * 1000);
+  </script>
 </body>
 </html>
